@@ -1,0 +1,109 @@
+// Copyright (c) 2023 Nordic Semiconductor ASA
+// SPDX-License-Identifier: Apache-2.0
+
+/dts-v1/;
+#include <nordic/nrf52832_ciaa.dtsi>
+#include "uSD-pinctrl.dtsi"
+
+/ {
+	model = "uSD";
+	compatible = "jedocs,uSD";
+
+	chosen {
+		zephyr,sram = &sram0;
+		zephyr,flash = &flash0;
+		zephyr,code-partition = &slot0_partition;
+	};
+	
+	leds {
+		compatible = "gpio-leds";
+		led0: led_0 {
+			gpios = <&gpio0 21 GPIO_ACTIVE_HIGH>;
+			label = "LED 0";
+		};
+		led1: kill {
+			gpios = <&gpio0 0 GPIO_ACTIVE_HIGH>;
+			label = "KILL";
+		};
+		
+	};
+
+	pwmleds {
+		compatible = "pwm-leds";
+		pwm_led0: pwm_led_0 {
+			pwms = <&pwm0 0 PWM_USEC(20) PWM_POLARITY_NORMAL>;
+		};
+	};
+	
+	buttons {
+		compatible = "gpio-keys";
+		button0: button_0 {
+			gpios = <&gpio0 10 GPIO_ACTIVE_LOW>;
+			label = "card detect";
+		};
+	};
+	
+	/* These aliases are provided for compatibility with samples */
+	aliases {
+		led0 = &led0;
+		kill = &led1;
+		carddetect = &button0;
+	};
+};
+
+&adc {
+	status = "okay";
+};
+
+&gpiote {
+	status = "okay";
+};
+
+&gpio0 {
+	status = "okay";
+};
+
+&pwm0 {
+	status = "okay";
+	pinctrl-0 = <&pwm0_default>;
+	pinctrl-1 = <&pwm0_sleep>;
+	pinctrl-names = "default", "sleep";
+};
+
+&spi1 {
+	compatible = "nordic,nrf-spi";
+	status = "okay";
+	pinctrl-0 = <&spi1_default>;
+	pinctrl-1 = <&spi1_sleep>;
+	pinctrl-names = "default", "sleep";
+};
+
+&flash0 {
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		boot_partition: partition@0 {
+			label = "mcuboot";
+			reg = <0x0 0xc000>;
+		};
+		slot0_partition: partition@c000 {
+			label = "image-0";
+			reg = <0xc000 0x32000>;
+		};
+		slot1_partition: partition@3e000 {
+			label = "image-1";
+			reg = <0x3e000 0x32000>;
+		};
+		scratch_partition: partition@70000 {
+			label = "image-scratch";
+			reg = <0x70000 0xa000>;
+		};
+		storage_partition: partition@7a000 {
+			label = "storage";
+			reg = <0x7a000 0x6000>;
+		};
+	};
+};
+
