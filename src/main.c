@@ -41,7 +41,7 @@ közben rengeteget ít/olvas, a fájl vége felé egyre kevesebbet, végül
 
 LOG_MODULE_REGISTER();
 
-#define VERSION "0.8"
+#define VERSION "0.8.1"
 
 #define BT_ADDR_LE_STR_LEN 30
 
@@ -99,6 +99,7 @@ LOG_MODULE_REGISTER();
 #define G_O_GG_O 8
 #define R_O_RR_O 9
 #define X 10
+#define ERROR 11
 
 // BT ---------------------
 static struct bt_conn *central_conn;
@@ -153,9 +154,9 @@ static K_SEM_DEFINE(ble_peripheral_NUS_connected, 0, 1);
 static K_SEM_DEFINE(ble_central_NUS_connected, 0, 1);
 static K_SEM_DEFINE(gatt_discovery_complete, 0, 1);
 
-K_MSGQ_DEFINE(adc_data_queue, 10, 560, 2);
-K_MSGQ_DEFINE(bt_received_data_queue, 244, 6, 2);
-K_MSGQ_DEFINE(signaling_mode_queue, 2, 6, 2);
+K_MSGQ_DEFINE(adc_data_queue, 10, 560, 2);			// 560, 800
+K_MSGQ_DEFINE(bt_received_data_queue, 244, 7, 2); 	// 7, 10
+K_MSGQ_DEFINE(signaling_mode_queue, 2, 4, 2);
 
 
 
@@ -187,8 +188,8 @@ void error(void) {
 	int msg;
 	bt_disable();
 
-	LOG_INF("error");
-	msg = RED_ON;
+	LOG_INF("in error");
+	msg = ERROR;
 	k_msgq_put(&signaling_mode_queue, &msg, K_NO_WAIT);
 	
 	while (1) {
@@ -674,10 +675,7 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 {
 	char addr[BT_ADDR_LE_STR_LEN];
 	nrfx_err_t err;
-
-	char msg = RED_GREEN;
-	k_msgq_put(&signaling_mode_queue, &msg, K_NO_WAIT);
-
+	
 	const bt_addr_le_t *disconnected_mac_address = bt_conn_get_dst(conn);
 
 	bt_addr_le_to_str(disconnected_mac_address, addr, sizeof(addr));	
@@ -702,6 +700,10 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 		}
 
 		LOG_WRN("scan restart");
+
+		char msg = GREEN_BLINK;
+		k_msgq_put(&signaling_mode_queue, &msg, K_NO_WAIT);
+
 		err = bt_scan_start(BT_SCAN_TYPE_SCAN_ACTIVE);
 		if (err) {
 			LOG_ERR("Scanning failed to start (err %d)", err);
@@ -712,6 +714,9 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 		LOG_WRN("Disconnected: %s (reason %u), role: peripheral", addr, reason);
 		bt_conn_unref(peripheral_conn);
 		peripheral_conn = NULL;		
+
+		char msg = RED_BLINK;
+		k_msgq_put(&signaling_mode_queue, &msg, K_NO_WAIT);
 
 		err = bt_le_adv_start(BT_LE_ADV_CONN, ad, ARRAY_SIZE(ad), sd, ARRAY_SIZE(sd));
 		if (err) {
@@ -751,7 +756,7 @@ uint8_t peripheral_nus_init() {
 		error();
 	}
 
-	// nrf_radio_txpower_set(NRF_RADIO, (nrf_radio_txpower_t)NRF_RADIO_TXPOWER_POS4DBM);
+	nrf_radio_txpower_set(NRF_RADIO, (nrf_radio_txpower_t)NRF_RADIO_TXPOWER_POS4DBM);
 	// LOG_INF("+4 dBm after");
 
 	LOG_INF("Bluetooth initialized");
@@ -793,6 +798,8 @@ uint8_t central_nus_init() {
 		LOG_INF("BT enable error");		
 		return 1;
 	}
+
+	nrf_radio_txpower_set(NRF_RADIO, (nrf_radio_txpower_t)NRF_RADIO_TXPOWER_POS4DBM);
 
 	LOG_INF("Bluetooth initialized");
 
@@ -851,7 +858,7 @@ static void daq_system_init(void) {
 	 	error();
 	}
 
-	pwm_set_dt(&pwm_led0, 5000, 1200);
+	pwm_set_dt(&pwm_led0, 5000, 2000);
 	// 	LOG_INF("Error %d: failed to set pulse width", err);
 	// 	error();
 	// }
@@ -887,7 +894,7 @@ void main(void)
     LOG_INF("ADC test, board: %s, ver.: %s", CONFIG_BOARD, VERSION);
 	//printk("k ADC test\nBoard: %s", CONFIG_BOARD);
 		
-	k_sleep(K_MSEC(2000));
+	//k_sleep(K_MSEC(2000));
 
 	daq_system_init();
 
@@ -903,13 +910,13 @@ void main(void)
 
 	if  (tout_cnt == 0) {	// and (nrf_gpio_pin_read(CARD_DETECT) == 0)  // uSD card present 
 
-		msg = RED_GREEN;
+		msg = GREEN_BLINK;
 		k_msgq_put(&signaling_mode_queue, &msg, K_NO_WAIT);
 
 		LOG_INF("uSD card present");
 
 		err = littlefs_mount(mp);
-		if (err < 0) {
+		if (err) {
 			LOG_ERR("fs mount failed %d", err);
 			error();
 		}
@@ -955,10 +962,11 @@ void main(void)
 
 	}
 	else {	// uSD card not present
-		msg = RED_GREEN;
-		k_msgq_put(&signaling_mode_queue, &msg, K_NO_WAIT);
-		
 		LOG_INF("No uSD card present, peripheral NUS init start");
+		
+		msg = RED_BLINK;
+		k_msgq_put(&signaling_mode_queue, &msg, K_NO_WAIT);
+				
 		err = peripheral_nus_init();	
 		if (err) {
 			error();
@@ -979,7 +987,7 @@ void main(void)
 	LOG_INF("tx power: %d", txp);
 	LOG_INF("starting data acquisition");
 	
-	k_sleep(K_MSEC(1000));
+	//k_sleep(K_MSEC(1000));
 
     err = nrfx_saadc_offset_calibrate(adc_eventHandler);
     if(err != NRFX_SUCCESS) { 
@@ -1032,18 +1040,22 @@ void main(void)
 					data_array[data_idx] = 0; 
 
 					err = fs_open(&master_file, fname_master, FS_O_CREATE | FS_O_RDWR);
-					if (err < 0) {
-						LOG_ERR("open fail!");
+					if (err) {
+						LOG_ERR("master open fail, %d", err);
 						error();
 					}
 										
 					err = fs_seek(&master_file, 0, FS_SEEK_END);
+					if (err) {
+						LOG_ERR("master seek fail, %d", err);
+						error();
+						}
 
 					k_mutex_lock(&power_mutex, K_FOREVER);
 
 					err = fs_write(&master_file, data_array, sizeof(data_array));
-					if (err < 0) {
-						LOG_ERR("write fail!");
+					if (err != 512) {
+						LOG_ERR("master write fail, %d", err);
 						error();
 					}
 
@@ -1106,18 +1118,22 @@ void main(void)
 
 						//nrf_gpio_pin_toggle(LED);				
 						err = fs_open(&slave_file, fname_slave, FS_O_CREATE | FS_O_RDWR);
-						if (err<0) {
-							LOG_ERR("open fail!");
+						if (err) {
+							LOG_ERR("slave open fail, %d", err);
 							error();
 						}
 											
 						err = fs_seek(&slave_file, 0, FS_SEEK_END);
+						if (err) {
+							LOG_ERR("slave seek fail, %d", err);
+							error();
+						}
 
 						k_mutex_lock(&power_mutex, K_FOREVER);
 
 						err = fs_write(&slave_file, bt_data_array, 512);
-						if (err<0) {
-							LOG_ERR("write fail!");
+						if (err != 512) {
+							LOG_ERR("slave write fail!, %d", err);
 							error();
 						}
 
@@ -1157,6 +1173,7 @@ void signal_thread(void)
 		err = k_msgq_get(&signaling_mode_queue, &sm, K_NO_WAIT);  // csak K_NO_WAIT lehet, mert ISR-ből jön!!!!!
 		if (err == 0){
 			signaling_mode = sm; 
+			LOG_INF("sm: %d", sm);
 		}
 					
 		switch (signaling_mode) {
@@ -1182,20 +1199,36 @@ void signal_thread(void)
 				tick = 0;
 				break;
 				
-			case RED_BLINK:
+			case ERROR:
 				switch (tick) {
-					case 0:
+					case 1:
 						nrf_gpio_cfg_input(LED, NRF_GPIO_PIN_NOPULL);
 						break;
 
-					case 80:
+					case 13:
 						nrf_gpio_cfg_output(LED);
 						nrf_gpio_pin_write(LED, RED);
 						break;
 
-					case 90:
-						nrf_gpio_cfg_input(LED, NRF_GPIO_PIN_NOPULL);
+					case 25:
 						tick = 0;
+						break;
+					
+					default:
+						break;
+				}
+				break;
+
+			case RED_BLINK:
+				switch (tick) {
+					
+					case 1:
+						nrf_gpio_cfg_output(LED);
+						nrf_gpio_pin_write(LED, RED);
+						break;
+					
+					case 11:
+						nrf_gpio_cfg_input(LED, NRF_GPIO_PIN_NOPULL);
 						break;
 					
 					default:
@@ -1205,20 +1238,15 @@ void signal_thread(void)
 			
 			case GREEN_BLINK:
 				switch (tick) {
-					case 0:
-						nrf_gpio_cfg_input(LED, NRF_GPIO_PIN_NOPULL);
-						break;
-
-					case 10:
+					case 1:
 						nrf_gpio_cfg_output(LED);
 						nrf_gpio_pin_write(LED, GREEN);
 						break;
-
-					case 90:
+						
+					case 11:
 						nrf_gpio_cfg_input(LED, NRF_GPIO_PIN_NOPULL);
-						tick = 0;
 						break;
-					
+
 					default:
 						break;
 				}
@@ -1226,7 +1254,7 @@ void signal_thread(void)
 			
 			case G_O_GG_O:
 				switch (tick) {
-					case 0:
+					case 1:
 						nrf_gpio_cfg_output(LED);
 						nrf_gpio_pin_write(LED, GREEN);
 						break;
@@ -1251,7 +1279,7 @@ void signal_thread(void)
 
 			case R_O_RR_O:
 				switch (tick) {
-					case 0:
+					case 1:
 						nrf_gpio_cfg_output(LED);
 						nrf_gpio_pin_write(LED, RED);
 						break;
@@ -1276,22 +1304,16 @@ void signal_thread(void)
 
 			case RED_GREEN:
 				switch (tick) {
-					case 0:
+					case 1:
 						nrf_gpio_cfg_output(LED);
 						nrf_gpio_pin_write(LED, RED);
 						break;
 
-					case 50:
+					case 51:
 						nrf_gpio_cfg_output(LED);
 						nrf_gpio_pin_write(LED, GREEN);
 						break;
-
-					case 90:
-						nrf_gpio_cfg_output(LED);
-						nrf_gpio_pin_write(LED, RED);
-						tick = 0;
-						break;
-					
+				
 					default:
 						break;
 				}
