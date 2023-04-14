@@ -41,6 +41,8 @@ közben rengeteget ít/olvas, a fájl vége felé egyre kevesebbet, végül
 
 LOG_MODULE_REGISTER();
 
+#define VERSION "0.8"
+
 #define BT_ADDR_LE_STR_LEN 30
 
 #define STANDALONE 1
@@ -860,19 +862,18 @@ static void daq_system_init(void) {
 
 void main(void)
 {
-	static uint8_t bt_data_array[512];
 	static uint16_t bt_data_array_idx = 0;
 	static uint8_t bt_pkt_cnt_buffer[6];
-	uint8_t data_rcvd[BUFFER_SIZE*2];
-	static uint8_t bt_data_rcvd[244];	
-	static uint8_t data_array[512];
+	static uint8_t bt_data_array[512];	// buffer for data from BT to write to uSD
+	static uint8_t bt_data_rcvd[244];	// buffer for data received through BT
+	static uint8_t data_array[512]; 	// buffer for data from ADC to write to uSD or to send through BT
 	static uint8_t data_idx = 0;	
+	static uint8_t data_limit;			// amount of data to be put in data_array, depends on mode
 	static uint8_t cnt = 0;
-	
 	static uint8_t mode;
-	static uint8_t data_limit;	
+	uint8_t data_rcvd[BUFFER_SIZE*2];
 	nrfx_err_t err;
-	int msg;
+	uint8_t msg;
 
 	nrf_gpio_cfg_output(KILL);
 	nrf_gpio_pin_set(KILL);		// keep power on
@@ -883,7 +884,7 @@ void main(void)
 	
 	nrf_gpio_pin_write(LED, RED);
 
-    LOG_INF("ADC test, board: %s", CONFIG_BOARD);
+    LOG_INF("ADC test, board: %s, ver.: %s", CONFIG_BOARD, VERSION);
 	//printk("k ADC test\nBoard: %s", CONFIG_BOARD);
 		
 	k_sleep(K_MSEC(2000));
@@ -1302,7 +1303,7 @@ void signal_thread(void)
 	
 		k_sleep(K_MSEC(TICK_TIME_MS));
 		tick ++;
-		if (tick > 99) tick = 0;
+		if (tick > 98) tick = 0;
 	}
 } 
 
