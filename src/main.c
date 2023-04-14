@@ -185,7 +185,7 @@ static void timer_handler(nrf_timer_event_t event_type, void * p_context)
 
 void error(void) {
 	
-	int msg;
+	uint16_t msg;
 	bt_disable();
 
 	LOG_INF("in error");
@@ -664,7 +664,7 @@ static void connected(struct bt_conn *conn, uint8_t conn_err)
 
 		peripheral_conn = bt_conn_ref(conn);		
 
-		char msg = R_O_RR_O;
+		uint16_t msg = R_O_RR_O;
 		k_msgq_put(&signaling_mode_queue, &msg, K_NO_WAIT);
 
 		k_sem_give(&ble_peripheral_NUS_connected);
@@ -701,7 +701,7 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 
 		LOG_WRN("scan restart");
 
-		char msg = GREEN_BLINK;
+		uint16_t msg = GREEN_BLINK;
 		k_msgq_put(&signaling_mode_queue, &msg, K_NO_WAIT);
 
 		err = bt_scan_start(BT_SCAN_TYPE_SCAN_ACTIVE);
@@ -715,7 +715,7 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 		bt_conn_unref(peripheral_conn);
 		peripheral_conn = NULL;		
 
-		char msg = RED_BLINK;
+		uint16_t msg = RED_BLINK;
 		k_msgq_put(&signaling_mode_queue, &msg, K_NO_WAIT);
 
 		err = bt_le_adv_start(BT_LE_ADV_CONN, ad, ARRAY_SIZE(ad), sd, ARRAY_SIZE(sd));
@@ -756,9 +756,6 @@ uint8_t peripheral_nus_init() {
 		error();
 	}
 
-	nrf_radio_txpower_set(NRF_RADIO, (nrf_radio_txpower_t)NRF_RADIO_TXPOWER_POS4DBM);
-	// LOG_INF("+4 dBm after");
-
 	LOG_INF("Bluetooth initialized");
 
 	err = bt_nus_init(&nus_cb);
@@ -798,8 +795,6 @@ uint8_t central_nus_init() {
 		LOG_INF("BT enable error");		
 		return 1;
 	}
-
-	nrf_radio_txpower_set(NRF_RADIO, (nrf_radio_txpower_t)NRF_RADIO_TXPOWER_POS4DBM);
 
 	LOG_INF("Bluetooth initialized");
 
@@ -880,7 +875,7 @@ void main(void)
 	static uint8_t mode;
 	uint8_t data_rcvd[BUFFER_SIZE*2];
 	nrfx_err_t err;
-	uint8_t msg;
+	uint16_t msg;
 
 	nrf_gpio_cfg_output(KILL);
 	nrf_gpio_pin_set(KILL);		// keep power on
@@ -980,14 +975,19 @@ void main(void)
 		k_msgq_put(&signaling_mode_queue, &msg, K_NO_WAIT);		
 	}
 
-	int txp = nrf_radio_txpower_get(NRF_RADIO);
+	if (mode != STANDALONE) {
+		nrf_radio_txpower_set(NRF_RADIO, (nrf_radio_txpower_t)NRF_RADIO_TXPOWER_POS4DBM);
+		int txp = nrf_radio_txpower_get(NRF_RADIO);
 
-	k_sleep(K_MSEC(1000));
+		k_sleep(K_MSEC(1000));
 
-	LOG_INF("tx power: %d", txp);
+		LOG_INF("tx power: %d", txp);
+	}
+
+	
 	LOG_INF("starting data acquisition");
 	
-	//k_sleep(K_MSEC(1000));
+	k_sleep(K_MSEC(2000));
 
     err = nrfx_saadc_offset_calibrate(adc_eventHandler);
     if(err != NRFX_SUCCESS) { 
@@ -1157,8 +1157,8 @@ void signal_thread(void)
 {
 	nrfx_err_t err;
 	static uint16_t tick = 0;
-	static uint8_t signaling_mode = OFF;
-	int sm = 0;
+	static uint16_t signaling_mode = OFF;
+	uint16_t sm = 0;
 
 	LOG_INF("signal thread starting");
 
