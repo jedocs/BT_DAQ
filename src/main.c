@@ -41,7 +41,7 @@ közben rengeteget ít/olvas, a fájl vége felé egyre kevesebbet, végül
 
 LOG_MODULE_REGISTER();
 
-#define VERSION "0.8.1"
+#define VERSION "0.8.2"
 
 #define BT_ADDR_LE_STR_LEN 30
 
@@ -869,10 +869,10 @@ void main(void)
 	static uint8_t bt_data_array[512];	// buffer for data from BT to write to uSD
 	static uint8_t bt_data_rcvd[244];	// buffer for data received through BT
 	static uint8_t data_array[512]; 	// buffer for data from ADC to write to uSD or to send through BT
-	static uint8_t data_idx = 0;	
-	static uint8_t data_limit;			// amount of data to be put in data_array, depends on mode
-	static uint8_t cnt = 0;
-	static uint8_t mode;
+	static uint16_t data_idx = 0;	
+	static uint16_t data_limit = 0;			// amount of data to be put in data_array, depends on mode
+	static uint16_t cnt = 0;
+	static uint16_t mode;
 	uint8_t data_rcvd[BUFFER_SIZE*2];
 	nrfx_err_t err;
 	uint16_t msg;
@@ -1008,6 +1008,7 @@ void main(void)
 			data_array[data_idx] = data_rcvd[1] & 0x0f;		    
 			data_array[data_idx] |= (data_rcvd[3] << 4) & 0xf0;
 			data_idx ++;			
+			
 			data_array[data_idx] = data_rcvd[4];
 			data_idx ++;			
 			data_array[data_idx] = data_rcvd[6];
@@ -1053,7 +1054,7 @@ void main(void)
 
 					k_mutex_lock(&power_mutex, K_FOREVER);
 
-					err = fs_write(&master_file, data_array, sizeof(data_array));
+					err = fs_write(&master_file, data_array, 512);
 					if (err != 512) {
 						LOG_ERR("master write fail, %d", err);
 						error();
